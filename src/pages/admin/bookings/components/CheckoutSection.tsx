@@ -199,6 +199,14 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
     [discountedSubtotal, taxes.taxAmount, loyalty.pointsDiscountAmount]
   );
 
+  const roundedTotal = useMemo(() => {
+    return Math.round(total);
+  }, [total]);
+
+  const roundOffDifference = useMemo(() => {
+    return roundedTotal - total;
+  }, [roundedTotal, total]);
+
   const adjustedPrices = useMemo(() => {
     return getAdjustedServicePrices(
       selectedServices,
@@ -349,29 +357,6 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               <span>₹{subtotal}</span>
             </div>
 
-            <div className="flex justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Tax</span>
-                <Select
-                  value={taxes.appliedTaxId || "none"}
-                  onValueChange={taxes.handleTaxChange}
-                >
-                  <SelectTrigger className="h-7 w-[120px]">
-                    <SelectValue placeholder="No Tax" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Tax</SelectItem>
-                    {taxes.taxRates.map((tax) => (
-                      <SelectItem key={tax.id} value={tax.id}>
-                        {tax.name} ({tax.percentage}%)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <span>₹{taxes.taxAmount.toFixed(2)}</span>
-            </div>
-
             {membership.membershipDiscount > 0 && membership.membershipName && (
               <div className="flex justify-between text-sm text-green-600">
                 <span className="flex items-center">
@@ -420,24 +405,47 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               </div>
             )}
 
+            {taxes.taxAmount > 0 && taxes.appliedTaxName && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span className="flex items-center">
+                  <Percent className="mr-2 h-4 w-4" />
+                  Tax ({taxes.appliedTaxName})
+                </span>
+                <span>₹{taxes.taxAmount.toFixed(2)}</span>
+              </div>
+            )}
+
             {selectedCustomer && (
-              <div className="mt-4">
-                <LoyaltyPointsSection
-                  isEnabled={loyalty.isLoyaltyEnabled}
-                  walletBalance={loyalty.walletBalance}
-                  pointsToEarn={loyalty.pointsToEarn}
-                  usePoints={loyalty.usePoints}
-                  setUsePoints={loyalty.setUsePoints}
-                  pointsToRedeem={loyalty.pointsToRedeem}
-                  setPointsToRedeem={loyalty.setPointsToRedeem}
-                  maxPointsToRedeem={loyalty.maxPointsToRedeem}
-                  minRedemptionPoints={loyalty.minRedemptionPoints}
-                  pointsDiscountAmount={loyalty.pointsDiscountAmount}
-                  pointValue={loyalty.pointValue}
-                  maxRedemptionType={loyalty.maxRedemptionType}
-                  maxRedemptionValue={loyalty.maxRedemptionValue}
-                  pointsExpiryDate={loyalty.pointsExpiryDate}
-                />
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm items-center">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Award className="h-4 w-4 text-yellow-500" /> Points Earning
+                  </span>
+                  <span className="font-semibold text-yellow-600">{loyalty.pointsToEarn} pts</span>
+                </div>
+                <div className="flex justify-between text-sm items-center">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Award className="h-4 w-4 text-blue-500" /> Available Points
+                  </span>
+                  <span className="font-semibold text-blue-600">{loyalty.walletBalance} pts</span>
+                </div>
+                {loyalty.pointsDiscountAmount > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <label
+                      htmlFor="use-loyalty-points"
+                      className="flex items-center gap-2 text-muted-foreground"
+                    >
+                      <Award className="h-4 w-4 text-green-500" /> Redeem Points
+                    </label>
+                    <input
+                      id="use-loyalty-points"
+                      type="checkbox"
+                      checked={loyalty.usePoints}
+                      onChange={(e) => loyalty.setUsePoints(e.target.checked)}
+                      className="h-4 w-4 text-green-500 focus:ring-green-500"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -451,9 +459,14 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               </div>
             )}
 
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Round Off</span>
+              <span>{roundOffDifference > 0 ? `+₹${roundOffDifference}` : `₹${roundOffDifference}`}</span>
+            </div>
+
             <div className="flex justify-between text-lg font-bold pt-2">
               <span>Total</span>
-              <span>₹{total.toFixed(2)}</span>
+              <span>₹{roundedTotal.toFixed(2)}</span>
             </div>
           </div>
 
@@ -469,20 +482,13 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
                   <SelectValue placeholder="Select payment method" />
                 </SelectTrigger>
                 <SelectContent>
-                  {paymentMethodsLoading ? (
-                    <SelectItem value="loading">Loading...</SelectItem>
-                  ) : paymentMethods.length > 0 ? (
+                  {paymentMethods.length > 0 ? (
                     paymentMethods.map((method) => (
                       <SelectItem key={method.id} value={method.name}>
                         {method.name}
                       </SelectItem>
                     ))
-                  ) : (
-                    <>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="online">Online</SelectItem>
-                    </>
-                  )}
+                  ):  null}
                 </SelectContent>
               </Select>
             </div>
@@ -491,7 +497,11 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               <Button
                 className="flex-1 flex items-center justify-center gap-2"
                 size="lg"
-                onClick={handlePayment}
+                onClick={() => {
+                  if (!loadingPayment) {
+                    handlePayment();
+                  }
+                }}
                 disabled={selectedItems.length === 0 || loadingPayment}
               >
                 {loadingPayment ? (
@@ -582,6 +592,26 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
                         </span>
                       </div>
                     )}
+
+                    <h3 className="font-semibold">Tax</h3>
+                    <div className="flex gap-4">
+                      <Select
+                        value={taxes.appliedTaxId || "none"}
+                        onValueChange={taxes.handleTaxChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select tax" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Tax</SelectItem>
+                          {taxes.taxRates.map((tax) => (
+                            <SelectItem key={tax.id} value={tax.id}>
+                              {tax.name} ({tax.percentage}%)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
                     <div className="space-y-2">
                       <h3 className="font-semibold">Notes</h3>

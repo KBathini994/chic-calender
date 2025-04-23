@@ -38,13 +38,157 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppointmentActions } from '../hooks/useAppointmentActions';
 import { useAppointmentDetails } from '../hooks/useAppointmentDetails';
-import type { RefundData, TransactionDetails, SummaryViewProps } from '../types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRefundReason } from '../utils/formatters';
 import { formatPrice } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+
+const ReceiptDetails: React.FC<{ 
+  customer: any; 
+  items: any[]; 
+  subTotal: number | undefined; 
+  taxAmount: number | undefined; 
+  membershipName: string | undefined; 
+  membershipDiscount: number | undefined; 
+  roundOffDifference: number | undefined; 
+  totalPrice: number | undefined; 
+  paymentMethod: string; 
+  receiptNumber: string | undefined; 
+  onAddAnother: (() => void) | undefined; 
+}> = ({
+  customer,
+  items,
+  subTotal,
+  taxAmount,
+  membershipName,
+  membershipDiscount,
+  roundOffDifference,
+  totalPrice,
+  paymentMethod,
+  receiptNumber,
+  onAddAnother,
+}) => {
+  return (
+    <Card className="bg-white h-full border">
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-center justify-between border-b pb-2">
+          <div className="flex-1">
+            <div className="inline-flex items-center px-2.5 py-1 rounded bg-green-100 text-green-700 text-sm font-medium mb-2">
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              New Sale
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h4 className="text-base font-semibold">
+            {customer.full_name || 'No name provided'}
+          </h4>
+          {customer.phone_number && (
+            <p className="text-gray-600">{customer.phone_number}</p>
+          )}
+        </div>
+
+        <div className="overflow-y-auto">
+          <h4 className="font-medium mb-4">Items</h4>
+          {items && items.map((item, idx) => (
+            <div key={idx} className="py-2 flex justify-between items-start border-b">
+              <div className="flex-1">
+                <p className="font-medium text-sm line-clamp-1">
+                  {item.type === 'package' && <Package className="h-4 w-4 inline mr-1" />}
+                  {item.name}
+                </p>
+                {item.employee && (
+                  <p className="text-xs text-gray-500">
+                    Stylist: {item.employee.name}
+                  </p>
+                )}
+                {item.duration && (
+                  <p className="text-xs text-gray-500">
+                    Duration: {item.duration} minutes
+                  </p>
+                )}
+              </div>
+              <p className="text-right text-gray-900">
+                {formatPrice(item.price)}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-1 pt-2 border-t">
+          {subTotal !== undefined && (
+            <div className="flex justify-between text-sm">
+              <span>Subtotal</span>
+              <span>{formatPrice(subTotal)}</span>
+            </div>
+          )}
+
+          {taxAmount !== undefined && taxAmount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Tax</span>
+              <span>{formatPrice(taxAmount)}</span>
+            </div>
+          )}
+
+          {membershipName && membershipDiscount && membershipDiscount > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span className="flex items-center gap-1">
+                <Percent className="h-3 w-3" />
+                {membershipName} Discount
+              </span>
+              <span>-{formatPrice(membershipDiscount)}</span>
+            </div>
+          )}
+
+          {roundOffDifference !== undefined && roundOffDifference !== 0 && (
+            <div className="flex justify-between text-sm">
+              <span>Round-off Difference</span>
+              <span>{formatPrice(roundOffDifference)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between text-lg font-bold pt-2">
+            <span>Total</span>
+            <span>{formatPrice(totalPrice || 0)}</span>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t">
+          <div className="flex justify-between text-xs">
+            <span className="capitalize">
+              Paid with {paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : 'Online'}
+            </span>
+            <div className="flex items-center">
+              {paymentMethod === 'cash' ? (
+                <Banknote className="h-4 w-4 mr-1" />
+              ) : (
+                <CreditCard className="h-4 w-4 mr-1" />
+              )}
+              {formatPrice(totalPrice || 0)}
+            </div>
+          </div>
+        </div>
+
+        {receiptNumber && (
+          <div className="pt-2 text-center text-xs text-gray-500">
+            Receipt #: {receiptNumber}
+          </div>
+        )}
+
+        {onAddAnother && (
+          <div className="flex justify-center mt-4">
+            <Button onClick={onAddAnother} className="mx-auto">
+              Add Another {items && items[0]?.type === 'membership' ? 'Membership' : 'Appointment'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 export const SummaryView: React.FC<SummaryViewProps> = ({
   appointmentId,
@@ -57,7 +201,8 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
   taxAmount,
   subTotal,
   membershipName,
-  membershipDiscount
+  membershipDiscount,
+  roundOffDifference,
 }) => {
   const navigate = useNavigate();
   const [showVoidDialog, setShowVoidDialog] = React.useState(false);
@@ -78,7 +223,6 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
   const [taxRates, setTaxRates] = useState<{id: string; name: string; percentage: number}[]>([]);
   const { fetchAppointmentDetails, updateAppointmentStatus, processRefund, updateBookingStylelist } = useAppointmentActions();
   const { appointment } = useAppointmentDetails(appointmentId);
-
   React.useEffect(() => {
     if (appointmentId) {
       loadAppointmentDetails();
@@ -186,144 +330,19 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
     }
 
     return (
-      <Card className="bg-white h-full border">
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-center justify-between border-b pb-2">
-            <div className="flex-1">
-              <div className="inline-flex items-center px-2.5 py-1 rounded bg-green-100 text-green-700 text-sm font-medium mb-2">
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                New Sale
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-base font-semibold">
-              {customer.full_name || 'No name provided'}
-            </h4>
-            {customer.phone_number && (
-              <p className="text-gray-600">{customer.phone_number}</p>
-            )}
-          </div>
-
-          <div className="overflow-y-auto">
-            <h4 className="font-medium mb-4">Items</h4>
-            
-            {items && items.map((item, idx) => (
-              <div key={idx} className="py-2 flex justify-between items-start border-b">
-                <div className="flex-1">
-                  <p className="font-medium text-sm line-clamp-1">
-                    {item.type === 'package' && <Package className="h-4 w-4 inline mr-1" />}
-                    {item.name}
-                  </p>
-                  {item.employee && (
-                    <p className="text-xs text-gray-500">
-                      Stylist: {item.employee.name}
-                    </p>
-                  )}
-                  {item.duration && (
-                    <p className="text-xs text-gray-500">
-                      Duration: {item.duration} minutes
-                    </p>
-                  )}
-                </div>
-                <p className="text-right text-gray-900">
-                  {formatPrice(item.price)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-1 pt-2 border-t">
-            {subTotal !== undefined && (
-              <div className="flex justify-between text-sm">
-                <span>Subtotal</span>
-                <span>{formatPrice(subTotal)}</span>
-              </div>
-            )}
-            
-            {taxAmount !== undefined && taxAmount > 0 && (
-              <div className="flex justify-between text-sm">
-                <span>Tax</span>
-                <span>{formatPrice(taxAmount)}</span>
-              </div>
-            )}
-            
-            {membershipName && membershipDiscount && membershipDiscount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span className="flex items-center gap-1">
-                  <Percent className="h-3 w-3" />
-                  {membershipName} Discount
-                </span>
-                <span>-{formatPrice(membershipDiscount)}</span>
-              </div>
-            )}
-            
-            {appointment && appointment.points_discount_amount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span className="flex items-center gap-1">
-                  <Star className="h-3 w-3 text-amber-500" />
-                  Loyalty Points Discount
-                </span>
-                <span>-{formatPrice(appointment.points_discount_amount)}</span>
-              </div>
-            )}
-            
-            {appointment && appointment.discount_type !== 'none' && appointment.discount_value > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>
-                  Discount ({appointment.discount_type === 'percentage' ? 
-                    `${appointment.discount_value}%` : 
-                    formatPrice(appointment.discount_value)
-                  })
-                </span>
-                <span>
-                  -{formatPrice(
-                    appointment.discount_type === 'percentage' 
-                      ? (subTotal || 0) * (appointment.discount_value / 100)
-                      : appointment.discount_value
-                  )}
-                </span>
-              </div>
-            )}
-            
-            <div className="flex justify-between text-lg font-bold pt-2">
-              <span>Total</span>
-              <span>{formatPrice(totalPrice || 0)}</span>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t">
-            <div className="flex justify-between text-xs">
-              <span className="capitalize">
-                Paid with {paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : 'Online'}
-              </span>
-              <div className="flex items-center">
-                {paymentMethod === 'cash' ? (
-                  <Banknote className="h-4 w-4 mr-1" />
-                ) : (
-                  <CreditCard className="h-4 w-4 mr-1" />
-                )}
-                {formatPrice(totalPrice || 0)}
-              </div>
-            </div>
-          </div>
-          
-          {receiptNumber && (
-            <div className="pt-2 text-center text-xs text-gray-500">
-              Receipt #: {receiptNumber}
-            </div>
-          )}
-          
-          {onAddAnother && (
-            <div className="flex justify-center mt-4">
-              <Button onClick={onAddAnother} className="mx-auto">
-                Add Another {items && items[0]?.type === 'membership' ? 'Membership' : 'Appointment'}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ReceiptDetails
+        customer={customer}
+        items={items}
+        subTotal={subTotal}
+        taxAmount={taxAmount}
+        membershipName={membershipName}
+        membershipDiscount={membershipDiscount}
+        roundOffDifference={roundOffDifference}
+        totalPrice={totalPrice}
+        paymentMethod={paymentMethod}
+        receiptNumber={receiptNumber}
+        onAddAnother={onAddAnother}
+      />
     );
   };
 

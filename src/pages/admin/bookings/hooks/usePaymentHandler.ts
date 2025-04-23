@@ -56,6 +56,9 @@ export const usePaymentHandler = ({
         return;
       }
 
+      const roundedTotal = Math.round(total);
+      const roundOffDifference = roundedTotal - total;
+
       const saveAppointmentParams = {
         appointmentId,
         appliedTaxId: taxes.appliedTaxId,
@@ -68,7 +71,8 @@ export const usePaymentHandler = ({
         membershipId: membership.membershipId,
         membershipName: membership.membershipName,
         membershipDiscount: membership.membershipDiscount,
-        total,
+        total: roundedTotal, // Save the rounded total
+        roundOffDifference, // Save the round-off difference
         adjustedPrices: loyalty.adjustedServicePrices && Object.keys(loyalty.adjustedServicePrices).length > 0 
           ? { ...adjustedPrices, ...loyalty.adjustedServicePrices } 
           : adjustedPrices,
