@@ -83,7 +83,7 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
   const [loadingPayment, setLoadingPayment] = useState(false);
 
   const { data: services } = useActiveServices(locationId);
-  const { data: packages } = useActivePackages(locationId);
+  const { data: packages } = useActivePackages(); // Removed locationId parameter
   const { sendNotification } = useAppointmentNotifications();
 
   const {
