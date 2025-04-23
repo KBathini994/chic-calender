@@ -372,42 +372,6 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               <span>₹{taxes.taxAmount.toFixed(2)}</span>
             </div>
 
-            <div className="flex justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Coupon</span>
-                <Select
-                  value={coupons.selectedCouponId || "none"}
-                  onValueChange={coupons.handleCouponChange}
-                  disabled={coupons.isLoadingCoupons}
-                >
-                  <SelectTrigger className="h-7 w-[120px]">
-                    <SelectValue placeholder="No Coupon" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Coupon</SelectItem>
-                    {coupons.availableCoupons.map((coupon) => (
-                      <SelectItem key={coupon.id} value={coupon.id}>
-                        {coupon.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <span>
-                {coupons.selectedCoupon ? `-₹${coupons.couponDiscount.toFixed(2)}` : "₹0.00"}
-              </span>
-            </div>
-
-            {coupons.selectedCoupon && (
-              <div className="flex justify-between text-xs text-green-600 -mt-2 ml-16">
-                <span>
-                  {coupons.selectedCoupon.discount_type === "percentage"
-                    ? `${coupons.selectedCoupon.discount_value}% off`
-                    : `Fixed ₹${coupons.selectedCoupon.discount_value} off`}
-                </span>
-              </div>
-            )}
-
             {membership.membershipDiscount > 0 && membership.membershipName && (
               <div className="flex justify-between text-sm text-green-600">
                 <span className="flex items-center">
@@ -426,6 +390,16 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
                   Minimum bill amount not met for membership discount
                 </span>
                 <span></span>
+              </div>
+            )}
+
+            {coupons.selectedCoupon && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span className="flex items-center">
+                  <Award className="mr-2 h-4 w-4" />
+                  Coupon ({coupons.selectedCoupon.code})
+                </span>
+                <span>-₹{coupons.couponDiscount.toFixed(2)}</span>
               </div>
             )}
 
@@ -573,6 +547,42 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
                         />
                       )}
                     </div>
+
+                    <h3 className="font-semibold">Coupons</h3>
+                    <div className="flex gap-4">
+                      <Select
+                        value={coupons.selectedCouponId || "none"}
+                        onValueChange={coupons.handleCouponChange}
+                        disabled={coupons.isLoadingCoupons}
+                      >
+                        <SelectTrigger>
+                          <SelectValue>
+                            {coupons.selectedCoupon
+                              ? coupons.selectedCoupon.code
+                              : "Select coupon"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Coupon</SelectItem>
+                          {coupons.availableCoupons.map((coupon) => (
+                            <SelectItem key={coupon.id} value={coupon.id}>
+                              {coupon.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {coupons.selectedCoupon && (
+                      <div className="text-xs text-green-600">
+                        <span>
+                          {coupons.selectedCoupon.discount_type === "percentage"
+                            ? `${coupons.selectedCoupon.discount_value}% off`
+                            : `Fixed ₹${coupons.selectedCoupon.discount_value} off`}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <h3 className="font-semibold">Notes</h3>
                       <Textarea
