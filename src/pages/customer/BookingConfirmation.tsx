@@ -58,14 +58,15 @@ import {
 } from "@/components/ui/accordion";
 
 // Add utility functions at the top level
-const sendConfirmation = async (appointmentId: string) => {
+const sendConfirmation = async (appointmentId: string, bookings?: any[]) => {
   try {
     const { data: notificationResult } = await supabase.functions.invoke('send-appointment-notification', {
-      body: { appointmentId, type: 'booking_confirmation' }
+      body: { appointmentId, type: 'booking_confirmation', bookings }
     });
     return notificationResult;
   } catch (error) {
     console.error("Error sending confirmation:", error);
+    // Don't throw the error so the process can continue
     return null;
   }
 };
@@ -284,118 +285,227 @@ export default function BookingConfirmation() {
           .eq("id", customerId);
       }
 
+      // Get the bookings for the appointment to pass to sendConfirmation
+      const { data: bookingsData } = await supabase
+        .from("bookings")
+        .select("*, services(*), packages(*), employees!bookings_employee_id_fkey(*)")
+        .eq("appointment_id", appointmentId);
+
       try {
-        await sendConfirmation(appointmentId);
+        // Pass the bookings data to sendConfirmation
+        await sendConfirmation(appointmentId, bookingsData);
       } catch (notificationError) {
         console.error("Error sending confirmation:", notificationError);
+        // Error handling is already in sendConfirmation, but this is an extra safety
       }
 
       toast.success("Booking confirmed successfully!");
       setBookingSuccess(true);
       setTimeout(() => clearCartItems(items, removeFromCart), 5000);
     },
-    onSaveAppointment: async () => {
-      if (!selectedDate || !firstStartTime) return null;
+    onSaveAppointment: async (params) => {
+      try {
+        // Check if we have a valid selected date
+        if (!selectedDate) {
+          throw new Error("No date selected for booking");
+        }
+        
+        // Find a valid time to use - try various sources in order of priority
+        let timeToUse: string | undefined;
+        
+        // 1. If there's a selectedTime in params, use it
+        if (params?.selectedTime && typeof params.selectedTime === 'string') {
+          timeToUse = params.selectedTime;
+        } 
+        // 2. Otherwise, try to use the first time slot from selectedTimeSlots
+        else if (Object.values(selectedTimeSlots).length > 0) {
+          timeToUse = Object.values(selectedTimeSlots)[0];
+        }
+        // 3. If we still don't have a time, check if we have a time in sorted items
+        else if (sortedItems.length > 0 && selectedTimeSlots[sortedItems[0]?.id]) {
+          timeToUse = selectedTimeSlots[sortedItems[0]?.id];
+        }
+        // 4. Last resort - use a default time if everything else fails
+        else {
+          // Use a default opening time like 9:00 AM
+          timeToUse = "09:00";
+          console.warn("Using default time 09:00 as no time slot was found");
+        }
+        
+        // Validate time format before creating date
+        if (typeof timeToUse !== 'string') {
+          
+          throw new Error(`Invalid time format: ${JSON.stringify(timeToUse)}`);
+        }
 
-      const startDateTime = new Date(
-        `${format(selectedDate, "yyyy-MM-dd")} ${firstStartTime}`
-      );
-      const endDateTime = addMinutes(startDateTime, totalDuration);
+        const startDateTime = new Date(
+          `${format(selectedDate, "yyyy-MM-dd")} ${timeToUse}`
+        );
+        
+        // Check if date is valid before proceeding
+        if (isNaN(startDateTime.getTime())) {
+          throw new Error(`Invalid date created from: ${format(selectedDate, "yyyy-MM-dd")} ${timeToUse}`);
+        }
+        
+        const endDateTime = addMinutes(startDateTime, totalDuration);
 
-      const { data: appointmentData, error: appointmentError } = await supabase
-        .from("appointments")
-        .insert({
-          customer_id: customerId,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          notes: notes,
-          status: "booked",
-          number_of_bookings: items.length,
-          total_price: roundedTotal,
-          round_off_difference: roundOffDifference,
-          total_duration: totalDuration,
-          tax_amount: taxes.taxAmount,
-          tax_id: taxes.appliedTaxId,
-          coupon_id: coupons.selectedCouponId,
-          discount_type: coupons.selectedCoupon?.discount_type || null,
-          discount_value: coupons.selectedCoupon?.discount_value || 0,
-          location: selectedLocation,
-          membership_id: membership.membershipId || null,
-          membership_name: membership.membershipName || null,
-          membership_discount: membership.membershipDiscount || 0,
-          points_earned: loyalty.pointsToEarn,
-          points_redeemed: loyalty.pointsToRedeem,
-          points_discount_amount: loyalty.pointsDiscountAmount,
-        })
-        .select();
+        const { data: appointmentData, error: appointmentError } = await supabase
+          .from("appointments")
+          .insert({
+            customer_id: customerId,
+            start_time: startDateTime.toISOString(),
+            end_time: endDateTime.toISOString(),
+            notes: notes,
+            status: "booked",
+            number_of_bookings: items.length,
+            total_price: roundedTotal,
+            round_off_difference: roundOffDifference,
+            total_duration: totalDuration,
+            tax_amount: taxes.taxAmount,
+            tax_id: taxes.appliedTaxId,
+            coupon_id: coupons.selectedCouponId,
+            discount_type: coupons.selectedCoupon?.discount_type || null,
+            discount_value: coupons.selectedCoupon?.discount_value || 0,
+            location: selectedLocation,
+            membership_id: membership.membershipId || null,
+            membership_name: membership.membershipName || null,
+            membership_discount: membership.membershipDiscount || 0,
+            points_earned: loyalty.pointsToEarn,
+            points_redeemed: loyalty.pointsToRedeem,
+            points_discount_amount: loyalty.pointsDiscountAmount,
+          })
+          .select();
 
-      if (appointmentError) throw appointmentError;
+        if (appointmentError) throw appointmentError;
 
-      const appointmentId = appointmentData[0].id;
-      const bookingPromises = [];
+        const appointmentId = appointmentData[0].id;
+        const bookingPromises = [];
+        
+        // Debugging helper function to validate time
+        const validateTime = (timeString) => {
+          return typeof timeString === 'string' && /^\d{1,2}:\d{2}$/.test(timeString);
+        };
+        
+        const createBookingTimeObject = (timeString) => {
+          if (!validateTime(timeString)) {
+            console.log("ll");
 
-      for (const item of selectedItems) {
-        if (item.type === "service") {
-          // Make sure we have a valid time slot before creating booking
-          if (selectedTimeSlots[item.id]) {
-            bookingPromises.push(
-              supabase.from("bookings").insert({
-                appointment_id: appointmentId,
-                service_id: item.id,
-                employee_id: selectedStylists[item.id] || null,
-                status: "booked",
-                price_paid: item.adjustedPrice,
-                original_price: item.price,
-                start_time: new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[item.id]}`).toISOString(),
-                end_time: addMinutes(new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[item.id]}`), item.duration).toISOString(),
-              })
-            );
-          } else {
-            console.warn(`No time slot found for service ${item.id}`);
+            console.warn(`Invalid time format: ${timeString}, using fallback time`);
+            return null;
           }
-        } else if (item.type === "package") {
-          for (const service of item.services) {
-            // Make sure we have a valid time slot for the service before creating booking
-            if (selectedTimeSlots[service.id]) {
+          
+          const dateTimeObj = new Date(`${format(selectedDate, "yyyy-MM-dd")} ${timeString}`);
+          if (isNaN(dateTimeObj.getTime())) {
+            console.warn(`Invalid date created from: ${format(selectedDate, "yyyy-MM-dd")} ${timeString}`);
+            return null;
+          }
+          
+          return dateTimeObj;
+        };
+
+        for (const item of selectedItems) {
+          if (item.type === "service") {
+            // Make sure we have a valid time slot before creating booking
+            let timeSlot = null;
+            let startTimeObj = null;
+            
+            // First try to get time slot by item.id (cart item ID)
+            if (validateTime(selectedTimeSlots[item.id])) {
+              timeSlot = selectedTimeSlots[item.id];
+            } 
+            // Then try service_id if available
+            else if (item.service_id && validateTime(selectedTimeSlots[item.service_id])) {
+              timeSlot = selectedTimeSlots[item.service_id];
+            } 
+            // Fallback to first available time slot
+            else if (firstStartTime) {
+              timeSlot = firstStartTime;
+            }
+            
+            if (timeSlot) {
+              startTimeObj = createBookingTimeObject(timeSlot);
+            }
+            
+            if (startTimeObj) {
+              const endTimeObj = addMinutes(startTimeObj, item.duration);
+              
               bookingPromises.push(
                 supabase.from("bookings").insert({
                   appointment_id: appointmentId,
-                  service_id: service.id,
-                  package_id: item.id,
-                  employee_id: selectedStylists[service.id] || null,
+                  service_id: item.id,
+                  // Convert "any" to null for employee_id
+                  employee_id: selectedStylists[item.id] === "any" ? null : selectedStylists[item.id],
                   status: "booked",
-                  price_paid: service.adjustedPrice,
-                  original_price: service.price,
-                  start_time: new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[service.id]}`).toISOString(),  
-                  end_time: addMinutes(new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[service.id]}`), service.duration).toISOString(),
+                  // Use the correctly calculated adjusted price from adjustedPrices
+                  price_paid: adjustedPrices[item.id] !== undefined 
+                    ? adjustedPrices[item.id] 
+                    : (item.selling_price || item.price || 0),
+                  original_price: item.selling_price || item.price || 0,
+                  start_time: startTimeObj.toISOString(),
+                  end_time: endTimeObj.toISOString(),
                 })
               );
             } else {
-              console.warn(`No time slot found for package service ${service.id} in package ${item.id}`);
+              console.error(`Could not create valid booking time for service ${item.id}`);
+            }
+          } else if (item.type === "package") {
+            for (const service of item.services) {
+              // Make sure we have a valid time slot for the service before creating booking
+              let timeSlot = null;
+              let startTimeObj = null;
               
-              // Use the package start time as a fallback if available
-              if (selectedTimeSlots[item.id]) {
+              // Try each possible time slot source in order of preference
+              if (validateTime(selectedTimeSlots[service.id])) {
+                timeSlot = selectedTimeSlots[service.id];
+              } else if (validateTime(selectedTimeSlots[item.id])) {
+                timeSlot = selectedTimeSlots[item.id];
+              } else if (validateTime(Object.values(selectedTimeSlots)[0])) {
+                timeSlot = Object.values(selectedTimeSlots)[0];
+              } else if (validateTime(firstStartTime)) {
+                timeSlot = firstStartTime;
+              }
+              
+              // Create the date object if we have a valid time
+              if (timeSlot) {
+                startTimeObj = createBookingTimeObject(timeSlot);
+              }
+              
+              if (startTimeObj) {
+                const endTimeObj = addMinutes(startTimeObj, service.duration || 0);
+                
                 bookingPromises.push(
                   supabase.from("bookings").insert({
                     appointment_id: appointmentId,
                     service_id: service.id,
                     package_id: item.id,
-                    employee_id: selectedStylists[service.id] || null,
+                    employee_id: selectedStylists[service.id] === "any" ? null : 
+                               (selectedStylists[service.id] || 
+                               (selectedStylists[item.id] === "any" ? null : selectedStylists[item.id]) || 
+                               null),
                     status: "booked",
-                    price_paid: service.adjustedPrice,
-                    original_price: service.price,
-                    start_time: new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[item.id]}`).toISOString(),  
-                    end_time: addMinutes(new Date(`${format(selectedDate, "yyyy-MM-dd")} ${selectedTimeSlots[item.id]}`), service.duration).toISOString(),
+                    // Use the properly calculated adjusted price for package services
+                    price_paid: adjustedPrices[service.id] !== undefined 
+                      ? adjustedPrices[service.id] 
+                      : (service.package_selling_price || service.selling_price || service.price || 0),
+                    original_price: service.package_selling_price || service.selling_price || service.price || 0,
+                    start_time: startTimeObj.toISOString(),
+                    end_time: endTimeObj.toISOString(),
                   })
                 );
+              } else {
+                console.error(`Could not create valid booking time for package service ${service.id} in package ${item.id}`);
               }
             }
           }
         }
-      }
 
-      await Promise.all(bookingPromises);
-      return appointmentId;
+        await Promise.all(bookingPromises);
+        return appointmentId;
+      } catch (error) {
+        console.error("Error saving appointment:", error);
+        toast.error(error.message || "Failed to save appointment");
+        return null;
+      }
     }
   });
 
