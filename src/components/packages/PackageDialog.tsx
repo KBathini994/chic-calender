@@ -21,40 +21,47 @@ export function PackageDialog({ open, onOpenChange, initialData }: PackageDialog
   const queryClient = useQueryClient();
   const [enhancedData, setEnhancedData] = useState<any>(null);
 
+  // Reset enhancedData when dialog opens without initialData
   useEffect(() => {
-    const fetchPackageData = async () => {
-      if (initialData?.id) {
-        const { data: servicesResponse, error: servicesError } = await supabase
-          .from('package_services')
-          .select('service_id, package_selling_price')
-          .eq('package_id', initialData.id);
-        
-        if (servicesError) {
-          console.error('Error fetching package services:', servicesError);
-          return;
-        }
-
-        // Create a map of service_id to selling_price
-        const serviceSellingPrices = {};
-        servicesResponse.forEach(ps => {
-          if (ps.package_selling_price !== null) {
-            serviceSellingPrices[ps.service_id] = ps.package_selling_price;
-          }
-        });
-
-        setEnhancedData({
-          ...initialData,
-          services: servicesResponse.map(ps => ps.service_id),
-          selling_price: serviceSellingPrices,
-          categories: initialData.categories || []
-        });
-      } else {
+    if (open) {
+      if (!initialData) {
+        // Reset state when creating a new package
         setEnhancedData(null);
+      } else {
+        // Fetch data for editing an existing package
+        fetchPackageData();
       }
-    };
+    }
+  }, [open, initialData]);
 
-    fetchPackageData();
-  }, [initialData]);
+  const fetchPackageData = async () => {
+    if (initialData?.id) {
+      const { data: servicesResponse, error: servicesError } = await supabase
+        .from('package_services')
+        .select('service_id, package_selling_price')
+        .eq('package_id', initialData.id);
+      
+      if (servicesError) {
+        console.error('Error fetching package services:', servicesError);
+        return;
+      }
+
+      // Create a map of service_id to selling_price
+      const serviceSellingPrices = {};
+      servicesResponse.forEach(ps => {
+        if (ps.package_selling_price !== null) {
+          serviceSellingPrices[ps.service_id] = ps.package_selling_price;
+        }
+      });
+
+      setEnhancedData({
+        ...initialData,
+        services: servicesResponse.map(ps => ps.service_id),
+        selling_price: serviceSellingPrices,
+        categories: initialData.categories || []
+      });
+    }
+  };
 
   const handleSubmit = async (data: any) => {
     try {

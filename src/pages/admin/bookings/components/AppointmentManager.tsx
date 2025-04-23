@@ -512,15 +512,18 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
     >
       <div className="flex flex-col h-full">
         <div className="flex flex-1 min-h-0">
-          <div className="w-[30%] border-r">
-            <SelectCustomer
-              selectedCustomer={selectedCustomer}
-              setSelectedCustomer={setSelectedCustomer}
-              setShowCreateForm={setShowCreateForm}
-            />
-          </div>
+          {/* Only show SelectCustomer component when not in summary view */}
+          {currentScreen !== SCREEN.SUMMARY && (
+            <div className="w-[30%] border-r">
+              <SelectCustomer
+                selectedCustomer={selectedCustomer}
+                setSelectedCustomer={setSelectedCustomer}
+                setShowCreateForm={setShowCreateForm}
+              />
+            </div>
+          )}
 
-          <div className="w-[70%] flex flex-col h-full">
+          <div className={`${currentScreen === SCREEN.SUMMARY ? 'w-full' : 'w-[70%]'} flex flex-col h-full`}>
             <div className={`p-6 border-b flex-shrink-0 ${headerBgColor}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-start flex-col">
@@ -678,7 +681,7 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
               )}
 
               {currentScreen === SCREEN.SUMMARY && newAppointmentId && (
-                <div className="p-6">
+                <div className="p-6 w-full">
                   <h3 className="text-xl font-semibold mb-6">
                     Appointment Summary
                   </h3>
