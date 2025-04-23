@@ -1,4 +1,3 @@
-
 import { useMemo } from 'react';
 import type { Service, Package } from '../types';
 import { getTotalDuration, calculatePackagePrice } from '../utils/bookingUtils';
@@ -142,16 +141,29 @@ export const useSelectedItemsInCheckout = ({
 
         const totalDuration = packageServices.reduce((sum, s) => sum + s.duration, 0);
         const packageTotalPrice = calculatePackagePrice(pkg, customizedServices[packageId] || [], services);
+
+        // Calculate package adjusted price correctly by preserving the package discount structure
+        // First, get the original total of services without package discounts
+        const rawServicesTotal = packageServices.reduce((sum, s) => {
+          // For base package services, use the original service price (not the package price)
+          const service = services?.find(serv => serv.id === s.id);
+          return sum + (service?.selling_price || 0);
+        }, 0);
         
-        // FIX: Calculate the adjusted price for the entire package based on the sum of adjusted service prices
-        // This ensures that any discounts applied to services are correctly reflected in the package total
-        const packageAdjustedPrice = packageServices.reduce((sum, s) => sum + s.adjustedPrice, 0);
+        // Calculate the package discount ratio (how much discount the package itself provides)
+        const packageDiscountRatio = rawServicesTotal > 0 ? packageTotalPrice / rawServicesTotal : 1;
+        
+        // Now calculate the adjusted price by applying the same package discount ratio to the adjusted service prices
+        const packageAdjustedPrice = packageServices.reduce((sum, s) => {
+          // Apply the original package discount ratio to the adjusted service price
+          return sum + s.adjustedPrice * packageDiscountRatio;
+        }, 0);
 
         return {
           id: packageId,
           name: pkg.name,
           price: packageTotalPrice,
-          adjustedPrice: packageAdjustedPrice, // Use the sum of adjusted service prices
+          adjustedPrice: packageAdjustedPrice, // Use the calculated adjusted price
           duration: totalDuration,
           type: "package" as const,
           packageId: null as string | null,

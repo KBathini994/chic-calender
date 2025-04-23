@@ -73,9 +73,7 @@ export const usePaymentHandler = ({
         membershipDiscount: membership.membershipDiscount,
         total: roundedTotal, // Save the rounded total
         roundOffDifference, // Save the round-off difference
-        adjustedPrices: loyalty.adjustedServicePrices && Object.keys(loyalty.adjustedServicePrices).length > 0 
-          ? { ...adjustedPrices, ...loyalty.adjustedServicePrices } 
-          : adjustedPrices,
+        adjustedPrices, // Don't merge with loyalty.adjustedServicePrices
         paymentMethod,
         pointsEarned: loyalty.pointsToEarn,
         pointsRedeemed: loyalty.pointsToRedeem,
