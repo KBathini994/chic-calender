@@ -125,6 +125,7 @@ export const calculatePackagePrice = (
   // Ensure services is an array
   const servicesArray = Array.isArray(services) ? services : [];
   
+  // Start with the base package price
   let total = pkg?.price || 0;
 
   // Add price for additional customized services
@@ -137,6 +138,7 @@ export const calculatePackagePrice = (
       const isInPackage = pkg.package_services?.some(ps => ps.service.id === serviceId);
       
       if (service && !isInPackage) {
+        // Use the service's selling price for added customized services
         total += service.selling_price;
       }
     });
@@ -271,6 +273,7 @@ export const getAdjustedServicePrices = (
     selectedPackages.forEach((packageId) => {
       const pkg = packagesArray.find((p) => p.id === packageId);
       if (pkg) {
+        // For services in the package, use package_selling_price if available
         pkg.package_services?.forEach((ps) => {
           const originalServicePrice = ps.package_selling_price !== undefined && ps.package_selling_price !== null
             ? ps.package_selling_price
@@ -279,6 +282,7 @@ export const getAdjustedServicePrices = (
           result[ps.service.id] = originalServicePrice;
         });
         
+        // For customized services not in the base package
         if (pkg.is_customizable && customizedServices[packageId]) {
           customizedServices[packageId].forEach((serviceId) => {
             if (!pkg.package_services?.some(ps => ps.service.id === serviceId)) {
@@ -311,11 +315,16 @@ export const getAdjustedServicePrices = (
   selectedPackages.forEach((packageId) => {
     const pkg = packagesArray.find((p) => p.id === packageId);
     if (pkg) {
-      // First calculate the original total price of all services in the package without the package discount
-      const originalServicesTotal = pkg.package_services?.reduce((sum: number, ps: any) => {
-        const servicePrice = services.find((s: any) => s.id === ps.service.id)?.selling_price || 0;
-        return sum + servicePrice;
-      }, 0) || 0;
+      // First calculate the original total price of all services in the package WITHOUT the package's own discount
+      let originalServicesTotal = 0;
+      
+      // For base package services, use their original selling price (not the package-specific price)
+      if (pkg.package_services && pkg.package_services.length > 0) {
+        originalServicesTotal = pkg.package_services.reduce((sum: number, ps: any) => {
+          // Always use the original service selling price for this calculation
+          return sum + (ps.service.selling_price || 0);
+        }, 0);
+      }
       
       // Add prices of customized services
       const customServicesTotal = pkg.is_customizable && customizedServices[packageId] ? 
@@ -334,9 +343,13 @@ export const getAdjustedServicePrices = (
       
       // Now apply both the package's own discount and the checkout discount to each service
       pkg.package_services?.forEach((ps) => {
-        const originalServicePrice = ps.service.selling_price;
-        // Apply package's own discount, then the checkout discount
-        result[ps.service.id] = originalServicePrice * packageDiscountRatio * discountRatio;
+        // Start with the package-specific price if available
+        const serviceBasePrice = ps.package_selling_price !== undefined && ps.package_selling_price !== null
+          ? ps.package_selling_price
+          : ps.service.selling_price;
+          
+        // Apply the checkout discount to the package-specific price  
+        result[ps.service.id] = serviceBasePrice * discountRatio;
       });
       
       // Handle customized services
@@ -345,7 +358,7 @@ export const getAdjustedServicePrices = (
           if (!pkg.package_services?.some(ps => ps.service.id === serviceId)) {
             const service = servicesArray.find((s) => s.id === serviceId);
             if (service) {
-              // For additional services, apply both the package and checkout discounts
+              // For additional services, apply both the package discount and checkout discount
               result[serviceId] = service.selling_price * packageDiscountRatio * discountRatio;
             }
           }

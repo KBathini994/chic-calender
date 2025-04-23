@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Service, Package } from '../types';
-import { getTotalDuration, calculatePackagePrice } from '../utils/bookingUtils';
+import { getTotalDuration, calculatePackagePrice, getServicePriceInPackage } from '../utils/bookingUtils';
 
 interface ServiceItem {
   id: string;
@@ -93,28 +93,42 @@ export const useSelectedItemsInCheckout = ({
       ...selectedPackages.map((packageId) => {
         const pkg = packages?.find((p) => p.id === packageId);
         if (!pkg) return null;
+        
+        // Calculate original package base price (without adjustments)
+        const originalPackagePrice = calculatePackagePrice(pkg, customizedServices[packageId] || [], services);
 
-        const packageServices = pkg.package_services?.map(ps => {
-          const servicePrice = ps.package_selling_price || ps.service.selling_price;
-          const adjustedServicePrice = getServiceDisplayPrice(ps.service.id);
-          
-          return {
-            id: ps.service.id,
-            name: ps.service.name,
-            price: servicePrice,
-            adjustedPrice: adjustedServicePrice,
-            duration: ps.service.duration,
-            stylist: selectedStylists[ps.service.id] || "",
-            stylistName: selectedStylists[ps.service.id] ? getStylistName(selectedStylists[ps.service.id]) : "",
-            time: selectedTimeSlots[ps.service.id] || "",
-            isCustomized: false
-          };
-        }) || [];
+        // Prepare array for package services (both included and customized)
+        const packageServices = [];
+        
+        // First collect the base package services with their correct pricing
+        if (pkg.package_services && pkg.package_services.length > 0) {
+          packageServices.push(...pkg.package_services.map(ps => {
+            // Get the proper price for this service within the package context
+            const packageSpecificPrice = ps.package_selling_price !== undefined && ps.package_selling_price !== null
+              ? ps.package_selling_price
+              : ps.service.selling_price;
+            
+            // Get the adjusted price after discounts, memberships, etc.
+            const adjustedServicePrice = getServiceDisplayPrice(ps.service.id);
+            
+            return {
+              id: ps.service.id,
+              name: ps.service.name,
+              price: packageSpecificPrice, // Use package-specific price
+              adjustedPrice: adjustedServicePrice,
+              duration: ps.service.duration,
+              stylist: selectedStylists[ps.service.id] || "",
+              stylistName: selectedStylists[ps.service.id] ? getStylistName(selectedStylists[ps.service.id]) : "",
+              time: selectedTimeSlots[ps.service.id] || "",
+              isCustomized: false
+            };
+          }));
+        }
 
-        // Add customized services
+        // Then add any customized services that aren't already in the package
         if (pkg.is_customizable && customizedServices[packageId]) {
           const additionalServices = customizedServices[packageId]
-            .filter(serviceId => !packageServices.some(ps => ps.id === serviceId))
+            .filter(serviceId => !pkg.package_services?.some(ps => ps.service.id === serviceId))
             .map(serviceId => {
               const service = services?.find(s => s.id === serviceId);
               if (!service) return null;
@@ -139,31 +153,17 @@ export const useSelectedItemsInCheckout = ({
           packageServices.push(...(additionalServices as any[]));
         }
 
+        // Calculate the total duration of all services in the package
         const totalDuration = packageServices.reduce((sum, s) => sum + s.duration, 0);
-        const packageTotalPrice = calculatePackagePrice(pkg, customizedServices[packageId] || [], services);
-
-        // Calculate package adjusted price correctly by preserving the package discount structure
-        // First, get the original total of services without package discounts
-        const rawServicesTotal = packageServices.reduce((sum, s) => {
-          // For base package services, use the original service price (not the package price)
-          const service = services?.find(serv => serv.id === s.id);
-          return sum + (service?.selling_price || 0);
-        }, 0);
         
-        // Calculate the package discount ratio (how much discount the package itself provides)
-        const packageDiscountRatio = rawServicesTotal > 0 ? packageTotalPrice / rawServicesTotal : 1;
-        
-        // Now calculate the adjusted price by applying the same package discount ratio to the adjusted service prices
-        const packageAdjustedPrice = packageServices.reduce((sum, s) => {
-          // Apply the original package discount ratio to the adjusted service price
-          return sum + s.adjustedPrice * packageDiscountRatio;
-        }, 0);
+        // Calculate the adjusted total price of the package
+        const packageAdjustedPrice = packageServices.reduce((sum, s) => sum + s.adjustedPrice, 0);
 
         return {
           id: packageId,
           name: pkg.name,
-          price: packageTotalPrice,
-          adjustedPrice: packageAdjustedPrice, // Use the calculated adjusted price
+          price: originalPackagePrice,
+          adjustedPrice: packageAdjustedPrice,
           duration: totalDuration,
           type: "package" as const,
           packageId: null as string | null,
