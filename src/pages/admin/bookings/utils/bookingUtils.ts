@@ -343,13 +343,22 @@ export const getAdjustedServicePrices = (
       
       // Now apply both the package's own discount and the checkout discount to each service
       pkg.package_services?.forEach((ps) => {
-        // Start with the package-specific price if available
+        // Start with the package-specific price if available, otherwise use regular selling price
         const serviceBasePrice = ps.package_selling_price !== undefined && ps.package_selling_price !== null
           ? ps.package_selling_price
           : ps.service.selling_price;
           
-        // Apply the checkout discount to the package-specific price  
+        // Apply the checkout discount to the service price 
         result[ps.service.id] = serviceBasePrice * discountRatio;
+      });
+      
+      // Also add the package itself to the result so we can reference it directly
+      // Calculate the total adjusted price for all services in the package
+      let totalAdjustedPackagePrice = 0;
+      
+      // Sum up adjusted prices for base package services
+      pkg.package_services?.forEach((ps) => {
+        totalAdjustedPackagePrice += result[ps.service.id] || 0;
       });
       
       // Handle customized services
@@ -360,10 +369,14 @@ export const getAdjustedServicePrices = (
             if (service) {
               // For additional services, apply both the package discount and checkout discount
               result[serviceId] = service.selling_price * packageDiscountRatio * discountRatio;
+              totalAdjustedPackagePrice += result[serviceId];
             }
           }
         });
       }
+      
+      // Store the total adjusted package price
+      result[packageId] = totalAdjustedPackagePrice;
     }
   });
   
