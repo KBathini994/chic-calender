@@ -52,7 +52,6 @@ const ReceiptDetails: React.FC<{
   taxAmount: number | undefined; 
   membershipName: string | undefined; 
   membershipDiscount: number | undefined; 
-  roundOffDifference: number | undefined; 
   totalPrice: number | undefined; 
   paymentMethod: string; 
   receiptNumber: string | undefined; 
@@ -64,7 +63,6 @@ const ReceiptDetails: React.FC<{
   taxAmount,
   membershipName,
   membershipDiscount,
-  roundOffDifference,
   totalPrice,
   paymentMethod,
   receiptNumber,
@@ -143,13 +141,6 @@ const ReceiptDetails: React.FC<{
             </div>
           )}
 
-          {roundOffDifference !== undefined && roundOffDifference !== 0 && (
-            <div className="flex justify-between text-sm">
-              <span>Round-off Difference</span>
-              <span>{formatPrice(roundOffDifference)}</span>
-            </div>
-          )}
-
           <div className="flex justify-between text-lg font-bold pt-2">
             <span>Total</span>
             <span>{formatPrice(totalPrice || 0)}</span>
@@ -202,7 +193,6 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
   subTotal,
   membershipName,
   membershipDiscount,
-  roundOffDifference,
 }) => {
   const navigate = useNavigate();
   const [showVoidDialog, setShowVoidDialog] = React.useState(false);
@@ -337,7 +327,6 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
         taxAmount={taxAmount}
         membershipName={membershipName}
         membershipDiscount={membershipDiscount}
-        roundOffDifference={roundOffDifference}
         totalPrice={totalPrice}
         paymentMethod={paymentMethod}
         receiptNumber={receiptNumber}
@@ -479,7 +468,7 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
       ...refunds,
       originalSale
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  
+  console.log("allTransactions",allTransactions)
     return (
       <>
         <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto px-1">
@@ -648,17 +637,24 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
                     
                     <div className="flex justify-between text-sm text-green-600">
                       <span>
-                        Discount ({transaction.discount_type === 'percentage' ? 
+                        {transaction.discount_value ?`Discount (${transaction.discount_type === 'percentage' ? 
                           `${transaction.discount_value}%` : 
                           '₹' + transaction.discount_value
-                        })
+                        })` : null}
                       </span>
                       <span>
-                        -{transaction.discount_type === 'percentage' 
-                          ? '₹' + (subtotal * (transaction.discount_value / 100)).toFixed(2)
-                          : '₹' + transaction.discount_value.toFixed(2)}
+                      {transaction.discount_value > 0 ? 
+                        (transaction.discount_type === 'percentage' 
+                          ? `-₹${(subtotal * (transaction.discount_value / 100)).toFixed(2)}`
+                          : `-₹${transaction.discount_value.toFixed(2)}`) 
+                        : null}
                       </span>
                     </div>
+                    {transaction?.round_off_difference ? <div className="flex justify-between text-sm">
+                      <span>Round off</span>
+                      <span>₹{formatPrice(transaction?.round_off_difference)}</span>
+                    </div>: ""}
+                    
                     
                     <div className="flex justify-between text-lg font-bold pt-2">
                       <span>Total</span>
@@ -673,14 +669,6 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
                       <span className="capitalize">
                         Paid with {transaction.payment_method === 'cash' ? 'Cash' : transaction.payment_method === 'card' ? 'Card' : 'Online'}
                       </span>
-                      <div className="flex items-center">
-                        {transaction.payment_method === 'cash' ? (
-                          <Banknote className="h-4 w-4 mr-1" />
-                        ) : (
-                          <CreditCard className="h-4 w-4 mr-1" />
-                        )}
-                        ₹{Math.abs(transaction.total_price).toFixed(2)}
-                      </div>
                     </div>
                   </div>
   

@@ -43,6 +43,7 @@ import { useCouponsInCheckout } from "../hooks/useCouponsInCheckout";
 import { useTaxesInCheckout } from "../hooks/useTaxesInCheckout";
 import { useSelectedItemsInCheckout } from '../hooks/useSelectedItemsInCheckout';
 import { usePaymentHandler } from '../hooks/usePaymentHandler';
+import { formatPrice } from "@/lib/utils";
 
 interface CheckoutSectionProps {
   appointmentId?: string;
@@ -461,7 +462,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Round Off</span>
-              <span>{roundOffDifference > 0 ? `+₹${roundOffDifference}` : `₹${roundOffDifference}`}</span>
+              <span>{roundOffDifference > 0 ? `+₹${formatPrice(roundOffDifference)}` : `₹${formatPrice(roundOffDifference)}`}</span>
             </div>
 
             <div className="flex justify-between text-lg font-bold pt-2">
