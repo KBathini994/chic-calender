@@ -1,4 +1,3 @@
-
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import  AdminLayout  from "@/layouts/AdminLayout";
 import { AdminRoute } from "@/components/auth/AdminRoute";
@@ -22,6 +21,7 @@ import Settings from "./pages/admin/Settings";
 import BusinessSetup from "./pages/admin/settings/BusinessSetup";
 import Sales from "./pages/admin/settings/Sales";
 import ThirdParty from "./pages/admin/settings/ThirdParty";
+import Team from "./pages/admin/settings/Team";
 import Reports from "./pages/admin/Reports";
 import VerifyEmployeePage from "./pages/verify";
 
@@ -88,6 +88,8 @@ export default function App() {
             <Route path="settings/sales/*" element={<Sales />} />
             <Route path="settings/third-party" element={<ThirdParty />} />
             <Route path="settings/third-party/*" element={<ThirdParty />} />
+            <Route path="settings/team" element={<Team />} />
+            <Route path="settings/team/*" element={<Team />} />
           </Route>
         </Routes>
       </DndProvider>
