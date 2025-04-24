@@ -24,6 +24,7 @@ import ThirdParty from "./pages/admin/settings/ThirdParty";
 import Team from "./pages/admin/settings/Team";
 import Reports from "./pages/admin/Reports";
 import VerifyEmployeePage from "./pages/verify";
+import { Toaster } from "@/components/ui/sonner"; // Import the Sonner Toaster
 
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -36,6 +37,9 @@ export default function App() {
     <BrowserRouter>
       {/* Add UserStatus component for persistent auth state */}
       <UserStatus />
+      
+      {/* Add Sonner Toaster for consistent toast notifications */}
+      <Toaster position="top-right" />
       
       {/* Wrap all routes with DndProvider */}
       <DndProvider backend={HTML5Backend}>
